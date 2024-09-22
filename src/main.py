@@ -1,111 +1,148 @@
-import pandas as pd
+import polars as pl
+import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
+import os
 
-def read_dataset(file_path):
-    """Reads the CSV file into a Pandas DataFrame, skipping bad lines."""
-    df = pd.read_csv(file_path, sep='\t', encoding='utf-16', on_bad_lines='skip')
-    df.columns = df.columns.str.strip()  # Strip whitespace from column names
-    return df
+def dataset_import(file_path=None):
+    if file_path is None:
+        base_path = os.getcwd()  # Get current working directory
+        file_path = os.path.join(base_path, "polling_place_20240514.csv")
+    df_raw = pl.read_csv(
+        file_path,
+        infer_schema_length=0,
+        has_header=True,
+        sep='\t',  # Use the correct parameter name
+        encoding='utf-16',  # Adjust based on actual file encoding
+        ignore_errors=True,  # Skip over problematic rows
+    )
+    return df_raw
 
-def generate_descriptive_stats(df):
-    """Generates descriptive statistics for numeric and categorical columns."""
-    stats_numeric = df.describe()  # Statistics for numeric data
-    stats_categorical = df.describe(include=['object'])  # Statistics for categorical data
-    return stats_numeric, stats_categorical
 
-def generate_visualizations(df):
-    """Creates multiple visualizations for the report."""
+
+def data_modeling(df_raw):
+    # Drop rows with null values in critical columns
+    df_edited = df_raw.drop_nulls(subset=["polling_place_id", "polling_place_name"])
+
+    # Convert data types if necessary
+    df_edited = df_edited.with_columns(
+        [
+            pl.col("polling_place_id").cast(pl.Int32),
+            pl.col("zip").cast(pl.Int32),
+            pl.col("election_dt").str.strptime(pl.Date, "%m/%d/%Y"),
+        ]
+    )
+
+    return df_edited
+
+
+def calculate_polling_places_per_county(df):
+    return df.groupby("county_name").agg(
+        pl.count("polling_place_id").alias("num_polling_places")
+    )
+
+
+def calculate_mean_polling_places(df_counts):
+    return df_counts["num_polling_places"].mean()
+
+
+def calculate_median_polling_places(df_counts):
+    return df_counts["num_polling_places"].median()
+
+
+def calculate_std_polling_places(df_counts):
+    return df_counts["num_polling_places"].std()
+
+
+def plot_polling_places_per_county(df, save_directory):
+    # Ensure the directory exists
+    os.makedirs(save_directory, exist_ok=True)
+
+    # Calculate the number of polling places per county
+    df_counts = df.groupby("county_name").agg(
+        pl.count("polling_place_id").alias("num_polling_places")
+    )
+
+    # Convert to pandas DataFrame for plotting
+    df_counts_pd = df_counts.to_pandas()
+
+    # Plot
+    plt.figure(figsize=(12, 6))
+    sns.barplot(
+        data=df_counts_pd,
+        x="county_name",
+        y="num_polling_places",
+        palette="Spectral"
+    )
+    plt.title("Number of Polling Places per County")
+    plt.xlabel("County Name")
+    plt.ylabel("Number of Polling Places")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig(os.path.join(save_directory, "polling_places_per_county.png"))
+    plt.close()
+
+def generate_markdown_report(df_counts, mean_polling_places, median_polling_places, std_polling_places, save_directory="."):
+    """生成一个Markdown报告，包含描述性统计和可视化的结果"""
     
-    # Visualization 1: Display the number of polling places in the top 20 cities
-    if 'city' in df.columns:
-        city_counts = df['city'].dropna().value_counts().head(20)
-        plt.figure(figsize=(12, 6))
-        city_counts.plot(kind='bar')
-        plt.title('Top 20 Cities by Number of Polling Places')
-        plt.xlabel('City')
-        plt.ylabel('Number of Polling Places')
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        plt.savefig('top20_city_polling_places.png')
-        plt.close()
-
-    # Visualization 2: Distribution of polling places by state
-    if 'state' in df.columns:
-        state_counts = df['state'].dropna().value_counts()
-        plt.figure(figsize=(12, 6))
-        state_counts.plot(kind='bar', color='green')
-        plt.title('Number of Polling Places by State')
-        plt.xlabel('State')
-        plt.ylabel('Number of Polling Places')
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        plt.savefig('polling_places_by_state.png')
-        plt.close()
-
-    # Visualization 3: Distribution of polling places by ZIP code area
-    if 'zip' in df.columns:
-        zip_counts = df['zip'].dropna().value_counts().head(20)
-        plt.figure(figsize=(12, 6))
-        zip_counts.plot(kind='bar', color='purple')
-        plt.title('Top 20 ZIP Codes by Number of Polling Places')
-        plt.xlabel('ZIP Code')
-        plt.ylabel('Number of Polling Places')
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        plt.savefig('top20_zip_polling_places.png')
-        plt.close()
-
-def generate_markdown_report():
-    """Generates a markdown report with descriptive statistics and multiple visualizations."""
-    # Read descriptive statistics data
-    stats_numeric = pd.read_csv('descriptive_statistics_numeric.csv', index_col=0)
-    stats_categorical = pd.read_csv('descriptive_statistics_categorical.csv', index_col=0)
+    # Markdown 文件路径
+    md_file_path = os.path.join(save_directory, 'polling_places_analysis_report.md')
     
-    # Start writing the Markdown report
-    with open('report.md', 'w') as f:
+    with open(md_file_path, 'w') as f:
         f.write('# Polling Places Analysis Report\n\n')
         
-        # Add descriptive statistics
+        # 添加统计结果
         f.write('## Descriptive Statistics\n\n')
-        f.write('### Numeric Columns\n\n')
-        f.write(stats_numeric.to_markdown())
-        f.write('\n\n### Categorical Columns\n\n')
-        f.write(stats_categorical.to_markdown())
+        f.write(f'**Mean Number of Polling Places per County:** {mean_polling_places:.2f}\n\n')
+        f.write(f'**Median Number of Polling Places per County:** {median_polling_places}\n\n')
+        f.write(f'**Standard Deviation of Polling Places per County:** {std_polling_places:.2f}\n\n')
         
-        # Add explanatory text
-        f.write('\n\nThis section provides the summary statistics for both numeric and categorical columns in the dataset. The numeric columns provide insights into the distribution of the data, while the categorical columns reveal the distinct values for non-numeric data, such as city and state.\n\n')
-
-        # Add visualization results
+        # 解释性的文本
+        f.write('This section provides the summary statistics of polling places across different counties. '
+                'The mean, median, and standard deviation help in understanding the distribution of polling places.\n\n')
+        
+        # 添加可视化结果
         f.write('## Visualizations\n\n')
-        f.write('### Top 20 Cities by Number of Polling Places\n\n')
-        f.write('![Top 20 Polling Places by City](top20_city_polling_places.png)\n\n')
+        f.write('### Polling Places per County\n\n')
+        f.write('![Number of Polling Places per County](polling_places_per_county.png)\n\n')
         
-        f.write('### Polling Places by State\n\n')
-        f.write('![Polling Places by State](polling_places_by_state.png)\n\n')
-        
-        f.write('### Top 20 ZIP Codes by Number of Polling Places\n\n')
-        f.write('![Top 20 Polling Places by ZIP Code](top20_zip_polling_places.png)\n\n')
-        
-        # Add analysis conclusion
+        # 总结
         f.write('## Conclusion\n\n')
-        f.write('From the data and visualizations, we can see that the majority of polling places are concentrated in a few major cities and states. The distribution by ZIP code also highlights areas with more significant polling place activity. Further analysis could include trends over time or comparisons with voter population data.\n')
+        f.write('From the analysis, we observe the distribution of polling places across counties. '
+                'Further analysis could include comparing these numbers with voter population data to ensure accessibility.\n')
+    
+    print(f"Markdown report generated at: {md_file_path}")
+
 
 def main():
-    # Step 1: Read the dataset
-    df = read_dataset('polling_place_20240514.csv')
-    
-    # Step 2: Generate descriptive statistics
-    stats_numeric, stats_categorical = generate_descriptive_stats(df)
-    
-    # Save statistics data to CSV files
-    stats_numeric.to_csv('descriptive_statistics_numeric.csv', encoding='utf-8')
-    stats_categorical.to_csv('descriptive_statistics_categorical.csv', encoding='utf-8')
-    
-    # Step 3: Generate multiple visualizations
-    generate_visualizations(df)
-    
-    # Step 4: Generate Markdown report
-    generate_markdown_report()
+    # Load the dataset
+    df_raw = dataset_import()
 
-if __name__ == '__main__':
+    # Model the data
+    df_edited = data_modeling(df_raw)
+
+    # Calculate statistics
+    df_counts = calculate_polling_places_per_county(df_edited)
+    mean_polling_places = calculate_mean_polling_places(df_counts)
+    median_polling_places = calculate_median_polling_places(df_counts)
+    std_polling_places = calculate_std_polling_places(df_counts)
+
+    # Print calculated statistics
+    print(f"Polling Places per County:\n{df_counts}\n")
+    print(f"Mean Number of Polling Places per County: {mean_polling_places:.2f}")
+    print(f"Median Number of Polling Places per County: {median_polling_places}")
+    print(f"Standard Deviation: {std_polling_places:.2f}")
+
+    # Define the save directory for plots
+    save_directory = "."
+
+    # Plot the data
+    plot_polling_places_per_county(df_edited, save_directory)
+
+    generate_markdown_report(df_counts, mean_polling_places, median_polling_places, std_polling_places, save_directory)
+
+
+if __name__ == "__main__":
     main()
