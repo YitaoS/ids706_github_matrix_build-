@@ -1,5 +1,5 @@
 # IDS706 Mini Project
-![CI Status](https://github.com/YitaoS/ids706_github_matrix_build/actions/workflows/ci.yml/badge.svg)
+![CI Status](https://github.com/YitaoS/ids706_github_matrix_build-/actions/workflows/ci.yml/badge.svg)
 
 ## Getting Started
 Purpose of this project:
