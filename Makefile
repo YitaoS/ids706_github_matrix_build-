@@ -16,13 +16,6 @@ lint:
 run:
 	python3 src/main.py
 
-deploy:
-	git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-	git config --local user.name "github-actions[bot]"
-	git add ./*.md
-	git add ./*.png
-	git commit -m "Add report and images"
-
 test:
 	PYTHONPATH=src pytest -s tests/test_example.py
 

@@ -1,19 +1,18 @@
 # IDS706 Mini Project
-![CI Status](https://github.com/YitaoS/ids706_mini_project2/actions/workflows/ci.yml/badge.svg)
+![CI Status](https://github.com/YitaoS/ids706_github_matrix_build/actions/workflows/ci.yml/badge.svg)
 
 ## Getting Started
+Purpose of this project:
 
-### Prerequisites
-
-- Python 3.9 or higher
-- Docker (if using DevContainer)
+- Set up a Gitlab Actions workflow
+- Test across at least 3 different Python versions
 
 ### Installation
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/YitaoS/ids706_mini_project2.git
-   cd ids706_mini_project2
+   git clone https://github.com/YitaoS/ids706_github_matrix_build.git
+   cd ids706_github_matrix_build
    ```
 
 2. **Install dependencies**:
@@ -49,17 +48,7 @@
   make lint
   ```
 
-- **Deploy reports and images**:
-  ```bash
-  make deploy
-  ```
-
 ### Additional Commands
-
-- **Check code formatting** (without applying changes):
-  ```bash
-  make check-format
-  ```
 
 - **Clean up `.pyc` files and `__pycache__` directories**:
   ```bash
